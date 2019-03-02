@@ -1,3 +1,7 @@
+## Overview
+
+Forked from https://github.com/jasonrudolph/keyboard for customizing. See the original as appropriate.
+
 ## Toward a more useful keyboard
 
 Steve Losh's [Modern Space Cadet][modern-space-cadet] is an inspiration.
