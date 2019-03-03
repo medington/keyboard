@@ -1,39 +1,69 @@
-#!/bin/sh
+#!/usr/bin/env bash
+#
+# Setup script for getting Hammerspoon and Karabiner-elements installed via homebrew
+# and configuring custom setup scripts put into place
 
 set -e
+[[ "${DEBUG}" -gt "0" ]] && set -x && echo "args($#): $@"
 
-which -s brew || (echo "Homebrew is required: http://brew.sh/" && exit 1)
+declare -r SCRIPT_FULL="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+declare -r REPO_ROOT=$(dirname $(dirname "${SCRIPT_FULL}"))
 
-brew bundle check || brew bundle
+validate_brew() {
+  which -s brew || (echo "Homebrew is required: http://brew.sh/" && exit 1)
+  # TODO: Issue warning here if applications were previously installed manually (not via brew)
+  pushd "${REPO_ROOT}"
+  brew bundle check || brew bundle
+  popd
+}
 
-# Prepare custom settings for Karabiner-Elements
-# https://github.com/tekezo/Karabiner-Elements/issues/597#issuecomment-282760186
+setup_karabiner() {
+  # Prepare custom settings for Karabiner-Elements
+  # https://github.com/tekezo/Karabiner-Elements/issues/597#issuecomment-282760186
+  if [[ ! -e ~/.config/karabiner ]]; then
+    ln -sfn "${REPO_ROOT}/karabiner" ~/.config/
+  else
+    echo "Karabiner config previously setup - confirm settings"
+  fi
+}
+
+setup_hammerspoon() {
+  # Override the default config file location to be
+  if [[ ! -e ~/.config/hammerspoon ]]; then
+    # If Hammerspoon is already running, kill it so we can pick up the new config
+    killall Hammerspoon || true
+    ln -sfn "${REPO_ROOT}/hammerspoon" ~/.config/
+    # Use XDG base directory location for our configs
+    defaults write org.hammerspoon.Hammerspoon MJConfigFile "~/.config/hammerspoon/init.lua"
+    # Disable Dock icon for Hammerspoon
+    defaults write org.hammerspoon.Hammerspoon MJShowDockIconKey -bool FALSE
+  else
+    echo "Hammerspoon config previously setup - confirm settings"
+  fi
+}
+
+setup_inputrc() {
+  # Prepare custom settings for navigating between words in iTerm2
+  grep -sq forward-word ~/.inputrc || cat "${REPO_ROOT}/inputrc" >> ~/.inputrc
+}
+
+launch_apps() {
+  # Open Apps
+  open /Applications/Hammerspoon.app
+  open /Applications/Karabiner-Elements.app
+}
+
+enable_apps() {
+  # Enable apps at startup
+  osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/Hammerspoon.app", hidden:true}' > /dev/null
+  osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/Karabiner-Elements.app", hidden:true}' > /dev/null
+}
+
 mkdir -p ~/.config
-ln -sfn $PWD/karabiner ~/.config/
-
-# Prepare custom settings for Hammerspoon
-mkdir -p ~/.hammerspoon
-if ! grep -sq "require('keyboard')" ~/.hammerspoon/init.lua; then
-  echo "require('keyboard') -- Load Hammerspoon bits from https://github.com/jasonrudolph/keyboard" >> ~/.hammerspoon/init.lua
-fi
-ln -sfn $PWD/hammerspoon ~/.hammerspoon/keyboard
-
-# Prepare custom settings for navigating between words in iTerm2
-grep -sq forward-word ~/.inputrc || cat $PWD/inputrc >> ~/.inputrc
-
-# Disable Dock icon for Hammerspoon
-defaults write org.hammerspoon.Hammerspoon MJShowDockIconKey -bool FALSE
-
-# If Hammerspoon is already running, kill it so we can pick up the new config
-# when opening Hammerspoon below
-killall Hammerspoon || true
-
-# Open Apps
-open /Applications/Hammerspoon.app
-open /Applications/Karabiner-Elements.app
-
-# Enable apps at startup
-osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/Hammerspoon.app", hidden:true}' > /dev/null
-osascript -e 'tell application "System Events" to make login item at end with properties {path:"/Applications/Karabiner-Elements.app", hidden:true}' > /dev/null
-
+validate_brew
+setup_karabiner
+setup_hammerspoon
+setup_inputrc
+launch_apps
+enable_apps
 echo "Done! Remember to enable Accessibility for Hammerspoon."
